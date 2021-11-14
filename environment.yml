@@ -1,0 +1,44 @@
+name: py35-slides
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - asttokens=2.0.5
+  - bzip2=1.0.8
+  - ca-certificates=2021.10.8
+  - certifi=2018.8.24
+  - colorama=0.4.4
+  - executing=0.8.2
+  - freetype=2.10.4
+  - icecream=2.1.1
+  - jbig=2.1
+  - jpeg=9d
+  - lerc=3.0
+  - libcxx=12.0.1
+  - libdeflate=1.8
+  - libffi=3.2.1
+  - libpng=1.6.37
+  - libtiff=4.3.0
+  - libwebp-base=1.2.1
+  - libzlib=1.2.11
+  - lz4-c=1.9.3
+  - ncurses=6.2
+  - olefile=0.46
+  - openssl=1.0.2u
+  - pillow=5.3.0
+  - pip=20.3.4
+  - pygments=2.10.0
+  - python=3.5.5
+  - readline=7.0
+  - six=1.16.0
+  - sqlite=3.28.0
+  - tk=8.6.11
+  - wheel=0.37.0
+  - xz=5.2.5
+  - zlib=1.2.11
+  - zstd=1.5.0
+  - pip:
+    - numpy==1.18.5
+    - opencv-python==4.4.0.42
+    - setuptools==50.3.2
+prefix: /anaconda3/envs/py35-slides
