@@ -18,11 +18,13 @@ It accepts various command line arguments.
 from argparse import ArgumentParser
 import glob
 import os
+import subprocess
 from typing import List
 
 # Third-party libraries:
 import cv2
 from icecream import ic
+import numpy as np
 from PIL import Image
 
 
@@ -37,12 +39,54 @@ def frames_to_pdf(im_paths: List[str], out_path: str) -> bool:
         True if PDF generation successful, otherwise False.
     """
 
-    # Save images to list:
-    for im_path in im_paths:
-        im = Image.open(im_path)
-        im_list.append(im)
+    # Sort frames and convert them to Pillow objects:
+    im_paths.sort(
+        key = lambda x: (
+            int(x.split("/")[-1].split("_")[1]),  # Sort by video number
+            int(x.split("/")[-1].split("_")[3][:-4]),  # Sort by frame number
+        ),
+    )
+    im_list = [Image.open(im_path) for im_path in im_paths]
 
-    # Save frames to PDF:
+
+    ###TESTS
+    # arr = np.asarray(im_list[2])
+    # arr_rows = arr.shape[0]
+    # arr_cols = arr.shape[1]
+    # row_start = arr_rows - int(arr_rows / 20)
+    # col_stop = int(arr_cols / 35)
+    # sample_arr = arr[row_start:-1, 1:col_stop, :]
+
+    # Averages: 108, 117, 101, 100, 112
+    #
+    # sample_r = sample_arr[:, :, 0]
+    # sample_g = sample_arr[:, :, 1]
+    # sample_b = sample_arr[:, :, 2]
+    #
+    # ave_r = np.average(sample_r)
+    # ave_g = np.average(sample_g)
+    # ave_b = np.average(sample_b)
+    #
+    # ic(sample_r)
+    # ic(sample_r.shape)
+    # ic(ave_r, ave_g, ave_b)
+
+    # Format: (im_num: ave_r, ave_g, ave_b)
+    # (3: 153, 29, 143)
+    # (4: 149, 62, 140)
+    # (24: 128, 39, 136)
+    # (26: 128, 38, 134)
+    # (28: 131, 67, 139)
+    # (-1: 131, 67, 138)
+    # (Andrew: 122, 97, 62)
+    #
+    # sample_im = Image.fromarray(sample_arr)
+    # sample_im.save("sample.jpg")
+    #
+    # exit()
+
+
+    # Merge all frames into a single PDF file:
     im_list[0].save(
         out_path,
         "PDF",
@@ -50,12 +94,42 @@ def frames_to_pdf(im_paths: List[str], out_path: str) -> bool:
         save_all=True,
         append_images=im_list[1:],
     )
+
+    # Close Pillow objects:
+    for im in im_list:
+        im.close()
+
+    #Check if PDF generation was successful:
     success = os.path.isfile(out_path)
 
     return success
 
 
-def video_to_frames(iteration: int, path: str, sec: int):
+def create_dir(dir: str = "frames") -> str:
+    """Prepares a directory to save video frames in.
+
+    It creates the directory at the specified location it if does not exist
+    yet; otherwise it is emptied.
+
+    Args:
+        dir: Path to frames directory.
+
+    Returns:
+        Path to frames directory.
+    """
+
+    if not os.path.exists(dir):
+      os.makedirs(dir)
+    else:
+        pattern = dir + "/*"
+        files = glob.glob(pattern)
+        for file in files:
+            os.remove(file)
+
+    return dir
+
+
+def video_to_frames(iteration: int, path: str, dir: str, sec: int):
     """Extracts frames from a single video file into "frames" directory.
 
     The iteration variable is simply a number that is used in the naming of
@@ -64,7 +138,8 @@ def video_to_frames(iteration: int, path: str, sec: int):
     Args:
         iteration: Iteration number.
         path: Path to video.
-        sec: Number of seconds between saved frames.
+        dir: Path to frames directory.
+        sec: Number of seconds in between saved frames.
     """
 
     # Convert video to OpenCV object and obtain frame rate:
@@ -72,25 +147,14 @@ def video_to_frames(iteration: int, path: str, sec: int):
     fps = int(video.get(cv2.CAP_PROP_FPS))
     frames_thr = fps * sec
 
-    # Empty directory for frames or create it if it does not exist yet:
-    frames_dir = "frames"
-    if not os.path.exists(frames_dir):
-      os.makedirs(frames_dir)
-    else:
-        pattern = frames_dir + "/*"
-        files = glob.glob(pattern)
-        for file in files:
-            os.remove(file)
-
     # Extract frames from video, one by one:
     frames_count = 0
     success = 1
-    im_list = []
     while success:
         success, frame = video.read()
         if (frames_count % frames_thr == 0) and (frame is not None):
-            frame_name = "frame_{}_{}.jpg".format(iteration, frames_count)
-            im_path = os.path.join(frames_dir, frame_name)
+            frame_name = "video_{}_frame_{}.jpg".format(iteration, frames_count)
+            im_path = os.path.join(dir, frame_name)
             cv2.imwrite(im_path, frame)
         frames_count += 1
 
@@ -123,18 +187,29 @@ def get_file_paths(input_dir: str, ext: str) -> List[str]:
     return all_files
 
 
-def dir_to_frames(input_dir: str, ext: str, sec: int):
+def dir_to_frames(input_dir: str, ext: str, sec: int) -> str:
     """Extracts frames from video files in input_dir.
 
     Args:
         input_dir: Path to the input directory.
         ext: Extension of video files.
         sec: Number of seconds between saved frames.
+
+    Returns:
+        Path to frames directory.
     """
 
+    # Obtain paths to video files:
     video_paths = get_file_paths(input_dir, ext)
+    video_paths.sort(key = lambda x: int(x.split("/")[-1].split(" - ")[0]))
+
+    # Extract frames from videos:
+    frames_dir = create_dir()
+    out = subprocess.run("ulimit -n 10000", shell=True)  # Change limit on file handles (https://stackoverflow.com/questions/39537731/errno-24-too-many-open-files-but-i-am-not-opening-files)
     for i, path in enumerate(video_paths):
-        video_to_frames(i, path, sec)
+        video_to_frames(i, path, frames_dir, sec)
+
+    return frames_dir
 
 
 def dir_to_pdf(input_dir: str, out_path: str, ext: str, sec: int) -> bool:
@@ -150,9 +225,8 @@ def dir_to_pdf(input_dir: str, out_path: str, ext: str, sec: int) -> bool:
         True if PDF generation successful, otherwise False.
     """
 
-    dir_to_frames(input_dir, ext, sec)
-    temp_dir = "frames"
-    im_paths = get_file_paths(temp_dir, "jpg")
+    frames_dir = dir_to_frames(input_dir, ext, sec)
+    im_paths = get_file_paths(frames_dir, "jpg")
     success = frames_to_pdf(im_paths, out_path)
 
     return success
@@ -199,6 +273,6 @@ if __name__ == "__main__":
     # Generate the PDF from the collection of video files:
     success = dir_to_pdf(args.input_dir, args.out_path, args.ext, args.sec)
     if not success:
-        print("-\n> Generation failed :(")
+        print("-\n> Failed to generate PDF :(")
     else:
-        print("\n-> Generation successful :)")
+        print("\n-> Successfully generated PDF :)")

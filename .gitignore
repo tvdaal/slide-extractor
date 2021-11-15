@@ -130,3 +130,7 @@ dmypy.json
 
 # Additional
 .DS_Store
+frames/
+videos/
+*.jpg
+*.pdf
