@@ -1,11 +1,17 @@
-*Work in progress!*
-
 # Description
 
-This application extracts distinct frames (slides) from a video recording.
+This application extracts distinct frames from a directory of video recordings
+and saves them to a PDF file.
+
+I needed to extract (static PowerPoint) slides from a large collection of
+recordings that also contain parts where only the speaker is showing. Since
+I could not find any good tooling for this online, I decided to build a script
+for this myself. With this custom solution, I was able to extract the relevant
+frames with ease.
 
 # Installation
-This application has been tested for Python 3.5. To get started, run the
+
+This repository has been tested for Python 3.5. To get started, run the
 following commands:
 
 ```
