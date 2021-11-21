@@ -9,8 +9,7 @@ The script accepts various command line arguments.
     Example of how to run:
 
     python extract_slides.py <path_to_input_data_dir> <out_path>.pdf
-    python extract_slides.py "/Users/tvdaal/Dropbox/Tom/CS/Data science/Coursera - MLOps specialization (2021)/Course 1 - Introduction to Machine Learning in Production/Week 1 - Overview of the ML Lifecycle and Deployment" slides.pdf
-
+    
     For more information on the various optional parameters, run:
 
     python extract_slides.py --help
