@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 """This script is used to extract frames from videos and save them to a PDF.
 
-It accepts various command line arguments.
+It is designed to extract nondistinct slides from recordings. One function,
+select_frames, is specific to the application.
+
+The script accepts various command line arguments.
 
     Example of how to run:
 
     python extract_slides.py <path_to_input_data_dir> <out_path>.pdf
     python extract_slides.py "/Users/tvdaal/Dropbox/Tom/CS/Data science/Coursera - MLOps specialization (2021)/Course 1 - Introduction to Machine Learning in Production/Week 1 - Overview of the ML Lifecycle and Deployment" slides.pdf
 
-    For more information on the various optional parameters run:
+    For more information on the various optional parameters, run:
 
     python extract_slides.py --help
 """
@@ -32,61 +35,15 @@ def frames_to_pdf(im_paths: List[str], out_path: str) -> bool:
     """Combines images into a PDF file.
 
     Args:
-        im_paths: Collection of images that need to be combined into a PDF.
+        im_paths: Paths to images that need to be combined into a PDF.
         out_path: Path to the output PDF file.
 
     Returns:
         True if PDF generation successful, otherwise False.
     """
 
-    # Sort frames and convert them to Pillow objects:
-    im_paths.sort(
-        key = lambda x: (
-            int(x.split("/")[-1].split("_")[1]),  # Sort by video number
-            int(x.split("/")[-1].split("_")[3][:-4]),  # Sort by frame number
-        ),
-    )
-    im_list = [Image.open(im_path) for im_path in im_paths]
-
-
-    ###TESTS
-    # arr = np.asarray(im_list[2])
-    # arr_rows = arr.shape[0]
-    # arr_cols = arr.shape[1]
-    # row_start = arr_rows - int(arr_rows / 20)
-    # col_stop = int(arr_cols / 35)
-    # sample_arr = arr[row_start:-1, 1:col_stop, :]
-
-    # Averages: 108, 117, 101, 100, 112
-    #
-    # sample_r = sample_arr[:, :, 0]
-    # sample_g = sample_arr[:, :, 1]
-    # sample_b = sample_arr[:, :, 2]
-    #
-    # ave_r = np.average(sample_r)
-    # ave_g = np.average(sample_g)
-    # ave_b = np.average(sample_b)
-    #
-    # ic(sample_r)
-    # ic(sample_r.shape)
-    # ic(ave_r, ave_g, ave_b)
-
-    # Format: (im_num: ave_r, ave_g, ave_b)
-    # (3: 153, 29, 143)
-    # (4: 149, 62, 140)
-    # (24: 128, 39, 136)
-    # (26: 128, 38, 134)
-    # (28: 131, 67, 139)
-    # (-1: 131, 67, 138)
-    # (Andrew: 122, 97, 62)
-    #
-    # sample_im = Image.fromarray(sample_arr)
-    # sample_im.save("sample.jpg")
-    #
-    # exit()
-
-
     # Merge all frames into a single PDF file:
+    im_list = [Image.open(im_path) for im_path in im_paths]
     im_list[0].save(
         out_path,
         "PDF",
@@ -94,8 +51,6 @@ def frames_to_pdf(im_paths: List[str], out_path: str) -> bool:
         save_all=True,
         append_images=im_list[1:],
     )
-
-    # Close Pillow objects:
     for im in im_list:
         im.close()
 
@@ -105,28 +60,49 @@ def frames_to_pdf(im_paths: List[str], out_path: str) -> bool:
     return success
 
 
-def create_dir(dir: str = "frames") -> str:
-    """Prepares a directory to save video frames in.
+def select_frames(im_paths: List[str]) -> List[str]:
+    """Selects distinct frames and throws out non-slide frames.
 
-    It creates the directory at the specified location it if does not exist
-    yet; otherwise it is emptied.
+    Note that this function is very specific to the application as it depends
+    on pixel values and patterns. Hence, for any new application, make
+    adjustments to this function.
 
     Args:
-        dir: Path to frames directory.
+        im_paths: Paths to frames.
 
     Returns:
-        Path to frames directory.
+        The full paths of the selected frames.
     """
 
-    if not os.path.exists(dir):
-      os.makedirs(dir)
-    else:
-        pattern = dir + "/*"
-        files = glob.glob(pattern)
-        for file in files:
-            os.remove(file)
+    # Loop over all frames and only select 'relevant' ones:
+    im_paths_sel = []
+    ave_prev = 0.0
+    for im_path in im_paths:
+        im = Image.open(im_path)
+        arr = np.asarray(im)
 
-    return dir
+        # Skip frame if average pixel value barely differs from previous one:
+        ave = np.average(arr)
+        ave_diff = abs(ave - ave_prev)
+        ave_prev = ave
+        if ave_diff < 0.2:
+            im.close()
+            continue
+
+        # Select bottom-left corner of image and obtain average pixel value:
+        arr_rows = arr.shape[0]
+        arr_cols = arr.shape[1]
+        row_start = arr_rows - int(arr_rows / 20)
+        col_stop = int(arr_cols / 35)
+        sample_arr = arr[row_start:-1, 1:col_stop, :]
+
+        # Only select images that have a purple corner on the bottom left:
+        sample_ave = np.average(sample_arr)
+        if 97 < sample_ave < 127:  # Min and max observed values are 100 and 124
+            im_paths_sel.append(im_path)
+        im.close()
+
+    return im_paths_sel
 
 
 def video_to_frames(iteration: int, path: str, dir: str, sec: int):
@@ -157,6 +133,30 @@ def video_to_frames(iteration: int, path: str, dir: str, sec: int):
             im_path = os.path.join(dir, frame_name)
             cv2.imwrite(im_path, frame)
         frames_count += 1
+
+
+def create_dir(dir: str = "frames") -> str:
+    """Prepares a directory to save video frames in.
+
+    It creates the directory at the specified location it if does not exist
+    yet; otherwise it is emptied.
+
+    Args:
+        dir: Path to frames directory.
+
+    Returns:
+        Path to frames directory.
+    """
+
+    if not os.path.exists(dir):
+      os.makedirs(dir)
+    else:
+        pattern = dir + "/*"
+        files = glob.glob(pattern)
+        for file in files:
+            os.remove(file)
+
+    return dir
 
 
 def get_file_paths(input_dir: str, ext: str) -> List[str]:
@@ -225,9 +225,21 @@ def dir_to_pdf(input_dir: str, out_path: str, ext: str, sec: int) -> bool:
         True if PDF generation successful, otherwise False.
     """
 
+    # Convert a collection of videos to individual frames:
     frames_dir = dir_to_frames(input_dir, ext, sec)
+
+    # Obtain full paths of frames and sort them:
     im_paths = get_file_paths(frames_dir, "jpg")
-    success = frames_to_pdf(im_paths, out_path)
+    im_paths.sort(
+        key = lambda x: (
+            int(x.split("/")[-1].split("_")[1]),  # Sort by video number
+            int(x.split("/")[-1].split("_")[3][:-4]),  # Sort by frame number
+        ),
+    )
+
+    # Select distinct frames and combine them into a PDF file:
+    im_paths_sel = select_frames(im_paths)
+    success = frames_to_pdf(im_paths_sel, out_path)
 
     return success
 
@@ -259,8 +271,8 @@ def construct_argparser() -> ArgumentParser:
     parser.add_argument(
         "--sec",
         type=int,
-        default=10,
-        help="Specify the time in seconds between frame captures",
+        default=1,
+        help="Specify the time in seconds between frame captures.",
     )
 
     return parser
@@ -273,6 +285,6 @@ if __name__ == "__main__":
     # Generate the PDF from the collection of video files:
     success = dir_to_pdf(args.input_dir, args.out_path, args.ext, args.sec)
     if not success:
-        print("-\n> Failed to generate PDF :(")
+        print("-\n> Failed to generate PDF :(\n")
     else:
-        print("\n-> Successfully generated PDF :)")
+        print("\n-> Successfully generated PDF :)\n")
