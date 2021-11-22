@@ -1,13 +1,10 @@
 # Description
 
-This application extracts distinct frames from a directory of video recordings
-and saves them to a PDF file.
+This application extracts distinct frames from a directory of video recordings and saves them to a PDF file.
 
-I needed to extract (static PowerPoint) slides from a large collection of
+I needed to extract (PowerPoint) slides from a large collection of
 recordings that also contain parts where only the speaker is showing. Since
-I could not find any good tooling for this online, I decided to build a script
-for this myself. With this custom solution, I was able to extract the relevant
-frames with ease.
+I could not find any good tooling for this online, I decided to build a Python script for this myself. With this custom solution, I was able to extract all relevant frames with ease. The script automatically removes duplicates and for any given title on the slide, it only keep the last one (as that one typically has most information on it). These operations rely on the comparison of pixel values across different areas of the videos' frames.
 
 # Installation
 

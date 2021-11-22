@@ -2,14 +2,15 @@
 """This script is used to extract frames from videos and save them to a PDF.
 
 It is designed to extract nondistinct slides from recordings. One function,
-select_frames, is specific to the application.
+select_frames, is specific to the application. This function also removes
+slides with duplicate titles.
 
 The script accepts various command line arguments.
 
     Example of how to run:
 
     python extract_slides.py <path_to_input_data_dir> <out_path>.pdf
-    
+
     For more information on the various optional parameters, run:
 
     python extract_slides.py --help
@@ -75,33 +76,68 @@ def select_frames(im_paths: List[str]) -> List[str]:
 
     # Loop over all frames and only select 'relevant' ones:
     im_paths_sel = []
-    ave_prev = 0.0
+    title_avgs = []
+    avg_prev = 0.0
     for im_path in im_paths:
         im = Image.open(im_path)
+
+        # Convert image to array:
         arr = np.asarray(im)
+        arr_rows = arr.shape[0]
+        arr_cols = arr.shape[1]
+        im.close()
 
         # Skip frame if average pixel value barely differs from previous one:
-        ave = np.average(arr)
-        ave_diff = abs(ave - ave_prev)
-        ave_prev = ave
-        if ave_diff < 0.2:
+        avg = np.average(arr)
+        avg_diff = abs(avg - avg_prev)
+        avg_prev = avg
+        if avg_diff < 0.2:
             im.close()
             continue
 
         # Select bottom-left corner of image and obtain average pixel value:
-        arr_rows = arr.shape[0]
-        arr_cols = arr.shape[1]
         row_start = arr_rows - int(arr_rows / 20)
         col_stop = int(arr_cols / 35)
-        sample_arr = arr[row_start:-1, 1:col_stop, :]
+        corner_arr = arr[row_start:-1, 1:col_stop, :]
 
         # Only select images that have a purple corner on the bottom left:
-        sample_ave = np.average(sample_arr)
-        if 97 < sample_ave < 127:  # Min and max observed values are 100 and 124
+        corner_avg = np.average(corner_arr)
+        corner_std = np.std(corner_arr[:, :, 2])  # Calculate the variance of red pixels
+        if (95 < corner_avg < 130) and (corner_std < 5):  # Min and max observed averages are 100 and 124
             im_paths_sel.append(im_path)
-        im.close()
+        else:
+            continue
 
-    return im_paths_sel
+        # Select title area of slide:
+        row_start = int(arr_rows / 30)
+        row_stop = int(arr_rows / 7)
+        col_start = int(arr_cols / 34)
+        col_stop = int(2 * arr_cols / 3)
+        title_arr = arr[row_start:row_stop, col_start:col_stop]
+
+        # Calculate average pixel value of title area:
+        title_avg = np.average(title_arr)
+        title_avgs.append(title_avg)
+
+    # Filter out similar slides (with the same title):
+    zipped = list(zip(im_paths_sel, title_avgs))
+    remove_indices = []
+    for i, tup in enumerate(zipped):
+        if i != 0:
+            diff = abs(tup[1] - zipped[i-1][1])
+        else:
+            continue
+
+        # Drop previous image if title is the same:
+        if diff < 0.5:
+            remove_indices.append(i-1)
+
+    # Remove all duplicate titles:
+    im_paths_final = [
+        tup[0] for j, tup in enumerate(zipped) if j not in remove_indices
+    ]
+
+    return im_paths_final
 
 
 def video_to_frames(iteration: int, path: str, dir: str, sec: int):
@@ -134,14 +170,13 @@ def video_to_frames(iteration: int, path: str, dir: str, sec: int):
         frames_count += 1
 
 
-def create_dir(dir: str = "frames") -> str:
-    """Prepares a directory to save video frames in.
+def create_dir(dir: str):
+    """Prepares a directory at the specified path.
 
-    It creates the directory at the specified location it if does not exist
-    yet; otherwise it is emptied.
+    The directory is created it if does not exist yet; otherwise it is emptied.
 
     Args:
-        dir: Path to frames directory.
+        dir: Path to directory.
 
     Returns:
         Path to frames directory.
@@ -154,8 +189,6 @@ def create_dir(dir: str = "frames") -> str:
         files = glob.glob(pattern)
         for file in files:
             os.remove(file)
-
-    return dir
 
 
 def get_file_paths(input_dir: str, ext: str) -> List[str]:
@@ -203,7 +236,8 @@ def dir_to_frames(input_dir: str, ext: str, sec: int) -> str:
     video_paths.sort(key = lambda x: int(x.split("/")[-1].split(" - ")[0]))
 
     # Extract frames from videos:
-    frames_dir = create_dir()
+    frames_dir = "frames"
+    create_dir(frames_dir)
     out = subprocess.run("ulimit -n 10000", shell=True)  # Change limit on file handles (https://stackoverflow.com/questions/39537731/errno-24-too-many-open-files-but-i-am-not-opening-files)
     for i, path in enumerate(video_paths):
         video_to_frames(i, path, frames_dir, sec)
@@ -237,8 +271,8 @@ def dir_to_pdf(input_dir: str, out_path: str, ext: str, sec: int) -> bool:
     )
 
     # Select distinct frames and combine them into a PDF file:
-    im_paths_sel = select_frames(im_paths)
-    success = frames_to_pdf(im_paths_sel, out_path)
+    im_paths_final = select_frames(im_paths)
+    success = frames_to_pdf(im_paths_final, out_path)
 
     return success
 
@@ -270,7 +304,7 @@ def construct_argparser() -> ArgumentParser:
     parser.add_argument(
         "--sec",
         type=int,
-        default=1,
+        default=2,
         help="Specify the time in seconds between frame captures.",
     )
 
