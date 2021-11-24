@@ -2,7 +2,7 @@
 """This script is used to extract frames from videos and save them to a PDF.
 
 It is designed to extract nondistinct slides from recordings. One function,
-select_frames, is specific to the application. This function also removes
+select_frames, is specific to the application; this function also removes
 slides with duplicate titles.
 
 The script accepts various command line arguments.
@@ -22,6 +22,7 @@ from argparse import ArgumentParser
 import glob
 import os
 import subprocess
+import time
 from typing import List
 
 # Third-party libraries:
@@ -61,7 +62,11 @@ def frames_to_pdf(im_paths: List[str], out_path: str) -> bool:
 
 
 def select_frames(im_paths: List[str]) -> List[str]:
-    """Selects distinct frames and throws out non-slide frames.
+    """Selects distinct frames and throws out non-slide (speaker) frames.
+
+    This function also only keeps the last slide in any sequence of slides
+    (defined by slides that share the same title). The reason for this is
+    that the last slide in a sequence typically provides most information.
 
     Note that this function is very specific to the application as it depends
     on pixel values and patterns. Hence, for any new application, make
@@ -95,15 +100,25 @@ def select_frames(im_paths: List[str]) -> List[str]:
             im.close()
             continue
 
-        # Select bottom-left corner of image and obtain average pixel value:
+        # Select bottom-left corner of image:
         row_start = arr_rows - int(arr_rows / 20)
         col_stop = int(arr_cols / 35)
-        corner_arr = arr[row_start:-1, 1:col_stop, :]
+        left_corner_arr = arr[row_start:-1, 1:col_stop, :]
 
-        # Only select images that have a purple corner on the bottom left:
-        corner_avg = np.average(corner_arr)
-        corner_std = np.std(corner_arr[:, :, 2])  # Calculate the variance of red pixels
-        if (95 < corner_avg < 130) and (corner_std < 5):  # Min and max observed averages are 100 and 124
+        # Select bottom-right corner of image:
+        col_start = arr_cols - int(arr_cols / 35)
+        right_corner_arr = arr[row_start:-1, col_start:-1, :]
+
+        # Calculate pixel averages and standard deviations for the corner areas:
+        left_corner_avg = np.average(left_corner_arr)
+        left_corner_green_avg = np.average(left_corner_arr[:, :, 1])
+        left_corner_blue_std = np.std(left_corner_arr[:, :, 2])
+        right_corner_avg = np.average(right_corner_arr)
+        right_corner_green_avg = np.average(right_corner_arr[:, :, 1])
+        right_corner_blue_std = np.std(right_corner_arr[:, :, 2])
+
+        # Only select images that have a purple corner on the bottom left and/or right:
+        if ((90 < left_corner_avg < 130) and (left_corner_green_avg < 90) and (left_corner_blue_std < 5)) or ((90 < right_corner_avg < 130) and (right_corner_green_avg < 90) and (right_corner_blue_std < 5)):
             im_paths_sel.append(im_path)
         else:
             continue
@@ -127,8 +142,7 @@ def select_frames(im_paths: List[str]) -> List[str]:
             diff = abs(tup[1] - zipped[i-1][1])
         else:
             continue
-
-        # Drop previous image if title is the same:
+        # Intend to drop previous image if title is the same:
         if diff < 0.5:
             remove_indices.append(i-1)
 
@@ -316,8 +330,12 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Generate the PDF from the collection of video files:
+    start_time = time.time()
+    print("\nGenerating PDF for recordings in '{}' ...".format(args.input_dir))
     success = dir_to_pdf(args.input_dir, args.out_path, args.ext, args.sec)
     if not success:
-        print("-\n> Failed to generate PDF :(\n")
+        print("-\n> Failed to generate PDF :(")
     else:
-        print("\n-> Successfully generated PDF :)\n")
+        end_time = time.time()
+        elapsed_time = round(end_time - start_time, 2)
+        print("\n-> Successfully generated PDF in {} seconds :)".format(elapsed_time))
