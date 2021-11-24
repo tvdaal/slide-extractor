@@ -18,10 +18,10 @@ been isolated in the function `select_frames` as much as possible.
 
 For an online course that I took, I wanted to extract (PowerPoint) slides from
 a large collection of recordings (ca. 20 hours of video material). Since I
-could not find any good tooling for this online, I decided to one myself.
+could not find any good tooling for this online, I decided to build one myself.
 With this custom solution in Python, I was able to extract all relevant
 frames with ease. From a few million video frames, I successfully extracted
-close to a thousand slides in PDF format.
+close to a thousand slides into a PDF file.
 
 # Installation
 
