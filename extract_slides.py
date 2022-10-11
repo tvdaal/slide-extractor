@@ -1,15 +1,43 @@
 #!/usr/bin/env python3
 """This script is used to extract frames from videos and save them to a PDF.
 
-It is designed to extract nondistinct slides from recordings. One function,
-select_frames, is specific to the application; this function also removes
-slides with duplicate titles.
+It is designed to extract nondistinct slides from recordings and remove slides
+with duplicate titles. One function, select_frames, is specific to the
+application, which can be a course taken online. Naturally, the course
+determines the styling of the slides and informs the script about which
+video frames to save.
+
+The user can specify the course as an argument. There are two options:
+
+    'mlops': This refers to 'Machine Learning Engineering for
+    Production Specialization' on Coursera (https://www.coursera.org/specializations/machine-learning-engineering-for-production-mlops)
+
+    'causality': This refers to 'A Crash Course in Causality' on
+    Coursera (https://www.coursera.org/learn/crash-course-in-causality)
+
+This script can be run on a directory and searches for video files with the
+specified extension (e.g. mp4). It will also locate videos in subdirectories.
+The videos should follow the following naming convention:
+
+    N - Title.ext
+
+"N" refers to an integer, "Title" refers to the title of the video, and "ext"
+refers to the file's extension. Two examples would be
+
+    1 - Welcome.mp4
+    5 - Chapter about AI.mp4
+
+All (relevant) distinct frames from all videos that are found in the specified
+directory will be saved to a PDF file at the specified path. The order of the
+videos is determined by "N". The specific "Title" is irrelevant.
 
 The script accepts various command line arguments.
 
     Example of how to run:
 
-    python extract_slides.py <path_to_input_data_dir> <out_path>.pdf
+    python extract_slides.py <path_to_input_data_dir> <course> <out_path>.pdf
+    python extract_slides.py '/Users/tvdaal/Dropbox/Tom/CS/Data science/Courses/Coursera - Causal inference (2022)/Week 1 - Introduction to Causal Effects' causality '/Users/tvdaal/Dropbox/Tom/CS/Data science/Courses/Coursera - Causal inference (2022)/Week 1 - Introduction to Causal Effects/Week 1 - Welcome and Introduction to Causal Effects.pdf'
+    python extract_slides.py '/Users/tvdaal/Dropbox/Tom/CS/Data science/Courses/Coursera - Causal inference (2022)/Test' causality test.pdf
 
     For more information on the various optional parameters, run:
 
@@ -61,7 +89,7 @@ def frames_to_pdf(im_paths: List[str], out_path: str) -> bool:
     return success
 
 
-def select_frames(im_paths: List[str]) -> List[str]:
+def select_frames(im_paths: List[str], course: str) -> List[str]:
     """Selects distinct frames and throws out non-slide (speaker) frames.
 
     This function also only keeps the last slide in any sequence of slides
@@ -69,11 +97,12 @@ def select_frames(im_paths: List[str]) -> List[str]:
     that the last slide in a sequence typically provides most information.
 
     Note that this function is very specific to the application as it depends
-    on pixel values and patterns. Hence, for any new application, make
-    adjustments to this function.
+    on pixel values and patterns. Hence, for any new application (e.g. an
+    online course), make adjustments to this function.
 
     Args:
         im_paths: Paths to frames.
+        course: Shorthand name for course.
 
     Returns:
         The full paths of the selected frames.
@@ -97,42 +126,67 @@ def select_frames(im_paths: List[str]) -> List[str]:
         avg_diff = abs(avg - avg_prev)
         avg_prev = avg
         if avg_diff < 0.2:
-            im.close()
+            # im.close()
             continue
 
-        # Select bottom-left corner of image:
-        row_start = arr_rows - int(arr_rows / 20)
-        col_stop = int(arr_cols / 35)
-        left_corner_arr = arr[row_start:-1, 1:col_stop, :]
+        if course == "mlops":
+            # Select bottom-left corner of image:
+            row_start = arr_rows - int(arr_rows / 20)
+            col_stop = int(arr_cols / 35)
+            left_corner_arr = arr[row_start:-1, 1:col_stop, :]
 
-        # Select bottom-right corner of image:
-        col_start = arr_cols - int(arr_cols / 35)
-        right_corner_arr = arr[row_start:-1, col_start:-1, :]
+            # Select bottom-right corner of image:
+            col_start = arr_cols - int(arr_cols / 35)
+            right_corner_arr = arr[row_start:-1, col_start:-1, :]
 
-        # Calculate pixel averages and standard deviations for the corner areas:
-        left_corner_avg = np.average(left_corner_arr)
-        left_corner_green_avg = np.average(left_corner_arr[:, :, 1])
-        left_corner_blue_std = np.std(left_corner_arr[:, :, 2])
-        right_corner_avg = np.average(right_corner_arr)
-        right_corner_green_avg = np.average(right_corner_arr[:, :, 1])
-        right_corner_blue_std = np.std(right_corner_arr[:, :, 2])
+            # Calculate pixel averages and standard deviations for the corner
+            # areas:
+            left_corner_avg = np.average(left_corner_arr)
+            left_corner_green_avg = np.average(left_corner_arr[:, :, 1])
+            left_corner_blue_std = np.std(left_corner_arr[:, :, 2])
+            right_corner_avg = np.average(right_corner_arr)
+            right_corner_green_avg = np.average(right_corner_arr[:, :, 1])
+            right_corner_blue_std = np.std(right_corner_arr[:, :, 2])
 
-        # Only select images that have a purple corner on the bottom left and/or right:
-        if ((90 < left_corner_avg < 130) and (left_corner_green_avg < 90) and (left_corner_blue_std < 5)) or ((90 < right_corner_avg < 130) and (right_corner_green_avg < 90) and (right_corner_blue_std < 5)):
-            im_paths_sel.append(im_path)
-        else:
-            continue
+            # Only select images that have a purple corner on the bottom left
+            # and/or right:
+            if ((90 < left_corner_avg < 130) and (left_corner_green_avg < 90) and (left_corner_blue_std < 5)) or ((90 < right_corner_avg < 130) and (right_corner_green_avg < 90) and (right_corner_blue_std < 5)):
+                im_paths_sel.append(im_path)
+            else:
+                continue
 
-        # Select title area of slide:
-        row_start = int(arr_rows / 30)
-        row_stop = int(arr_rows / 7)
-        col_start = int(arr_cols / 34)
-        col_stop = int(2 * arr_cols / 3)
-        title_arr = arr[row_start:row_stop, col_start:col_stop]
+            # Select title area of slide:
+            row_start = int(arr_rows / 30)
+            row_stop = int(arr_rows / 7)
+            col_start = int(arr_cols / 34)
+            col_stop = int(2 * arr_cols / 3)
+            title_arr = arr[row_start:row_stop, col_start:col_stop]
+
+        elif course == "causality":
+            # Select bottom-left corner of image:
+            row_start = arr_rows - int(arr_rows / 15)
+            col_stop = int(arr_cols / 6)
+            left_corner_arr = arr[row_start:-1, 1:col_stop, :]
+
+            # Calculate pixel average for the bottom-left corner:
+            left_corner_avg = np.average(left_corner_arr)
+            # print("Corner of {}: {}\n".format(im_path.split("/")[1], left_corner_avg))
+            if left_corner_avg > 200:
+                im_paths_sel.append(im_path)
+            else:
+                continue
+
+            # Select title area of slide:
+            row_start = int(arr_rows / 50)
+            row_stop = int(arr_rows / 10)
+            col_start = int(arr_cols / 30)
+            col_stop = arr_cols - int(arr_cols / 25)
+            title_arr = arr[row_start:row_stop, col_start:col_stop, 0]
 
         # Calculate average pixel value of title area:
         title_avg = np.average(title_arr)
         title_avgs.append(title_avg)
+        # print("Title of {}: {}\n".format(im_path.split("/")[1], title_avg))
 
     # Filter out similar slides (with the same title):
     zipped = list(zip(im_paths_sel, title_avgs))
@@ -143,7 +197,7 @@ def select_frames(im_paths: List[str]) -> List[str]:
         else:
             continue
         # Intend to drop previous image if title is the same:
-        if diff < 0.5:
+        if diff < 0.25:
             remove_indices.append(i-1)
 
     # Remove all duplicate titles:
@@ -259,11 +313,18 @@ def dir_to_frames(input_dir: str, ext: str, sec: int) -> str:
     return frames_dir
 
 
-def dir_to_pdf(input_dir: str, out_path: str, ext: str, sec: int) -> bool:
+def dir_to_pdf(
+    input_dir: str,
+    course: str,
+    out_path: str,
+    ext: str,
+    sec: int,
+) -> bool:
     """Extracts frames from video files in input_dir and saves them to a PDF.
 
     Args:
         input_dir: Path to the input directory.
+        course: Shorthand name for course.
         out_path: Path to the output PDF file.
         ext: Extension of video files.
         sec: Number of seconds between saved frames.
@@ -285,7 +346,7 @@ def dir_to_pdf(input_dir: str, out_path: str, ext: str, sec: int) -> bool:
     )
 
     # Select distinct frames and combine them into a PDF file:
-    im_paths_final = select_frames(im_paths)
+    im_paths_final = select_frames(im_paths, course)
     success = frames_to_pdf(im_paths_final, out_path)
 
     return success
@@ -303,6 +364,12 @@ def construct_argparser() -> ArgumentParser:
         "input_dir",
         type=str,
         help="Specify the path to the input data directory.",
+    )
+    parser.add_argument(
+        "course",
+        type=str,
+        choices=["mlops", "causality"],
+        help="Specify the course, which determines the styling of the slides",
     )
     parser.add_argument(
         "out_path",
@@ -332,7 +399,13 @@ if __name__ == "__main__":
     # Generate the PDF from the collection of video files:
     start_time = time.time()
     print("\nGenerating PDF for recordings in '{}' ...".format(args.input_dir))
-    success = dir_to_pdf(args.input_dir, args.out_path, args.ext, args.sec)
+    success = dir_to_pdf(
+        args.input_dir,
+        args.course,
+        args.out_path,
+        args.ext,
+        args.sec,
+    )
     if not success:
         print("-\n> Failed to generate PDF :(")
     else:
