@@ -36,8 +36,6 @@ The script accepts various command line arguments.
     Example of how to run:
 
     python extract_slides.py <path_to_input_data_dir> <course> <out_path>.pdf
-    python extract_slides.py '/Users/tvdaal/Dropbox/Tom/CS/Data science/Courses/Coursera - Causal inference (2022)/Week 1 - Introduction to Causal Effects' causality '/Users/tvdaal/Dropbox/Tom/CS/Data science/Courses/Coursera - Causal inference (2022)/Week 1 - Introduction to Causal Effects/Week 1 - Welcome and Introduction to Causal Effects.pdf'
-    python extract_slides.py '/Users/tvdaal/Dropbox/Tom/CS/Data science/Courses/Coursera - Causal inference (2022)/Test' causality test.pdf
 
     For more information on the various optional parameters, run:
 
@@ -125,8 +123,7 @@ def select_frames(im_paths: List[str], course: str) -> List[str]:
         avg = np.average(arr)
         avg_diff = abs(avg - avg_prev)
         avg_prev = avg
-        if avg_diff < 0.2:
-            # im.close()
+        if avg_diff < 0.1:
             continue
 
         if course == "mlops":
@@ -196,6 +193,7 @@ def select_frames(im_paths: List[str], course: str) -> List[str]:
             diff = abs(tup[1] - zipped[i-1][1])
         else:
             continue
+
         # Intend to drop previous image if title is the same:
         if diff < 0.25:
             remove_indices.append(i-1)
